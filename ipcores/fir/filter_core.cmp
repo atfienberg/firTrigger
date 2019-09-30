@@ -1,0 +1,21 @@
+	component filter_core is
+		port (
+			clk              : in  std_logic                      := 'X';             -- clk
+			reset_n          : in  std_logic                      := 'X';             -- reset_n
+			ast_sink_data    : in  std_logic_vector(75 downto 0)  := (others => 'X'); -- data
+			ast_sink_valid   : in  std_logic                      := 'X';             -- valid
+			ast_sink_error   : in  std_logic_vector(1 downto 0)   := (others => 'X'); -- error
+			ast_source_data  : out std_logic_vector(115 downto 0);                    -- data
+			ast_source_valid : out std_logic;                                         -- valid
+			ast_source_error : out std_logic_vector(1 downto 0);                      -- error
+			coeff_in_clk     : in  std_logic                      := 'X';             -- clk
+			coeff_in_areset  : in  std_logic                      := 'X';             -- reset_n
+			coeff_in_address : in  std_logic_vector(1 downto 0)   := (others => 'X'); -- address
+			coeff_in_read    : in  std_logic                      := 'X';             -- read
+			coeff_out_valid  : out std_logic_vector(0 downto 0);                      -- readdatavalid
+			coeff_out_data   : out std_logic_vector(15 downto 0);                     -- readdata
+			coeff_in_we      : in  std_logic_vector(0 downto 0)   := (others => 'X'); -- write
+			coeff_in_data    : in  std_logic_vector(15 downto 0)  := (others => 'X')  -- writedata
+		);
+	end component filter_core;
+
