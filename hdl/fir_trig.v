@@ -98,10 +98,10 @@ delay #(.DELAY(BSUM_DELAY - 1), .BITS(56))
 // pulse extenders to manage baseline sum pausing
 //
 wire bsum_pause;
-wire any_trigs = ( tot_0 > 0 || 
-		   tot_1 > 0 ||
-		   tot_2 > 0 ||
-		   tot_3 > 0);
+wire any_trigs = (tot_0 || 
+		  tot_1 ||
+		  tot_2 ||
+		  tot_3);
 pulse_extender #(.N_TO_EXTEND(BPAUSE_LEN)) 
     trig_extender (
    	.clk(clk),

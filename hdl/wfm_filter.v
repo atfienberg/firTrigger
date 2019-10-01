@@ -19,9 +19,9 @@ module wfm_filter(
 	input reset_n,
 	input valid_in, // whether input is valid
 	input[75:0] in_data, // input samples
-	output valid_out, // whether output is valid
-	output[7:0] out_err, // output errors
-	output[123:0] out_data, // output samples
+	output reg valid_out = 0, // whether output is valid
+	output reg[7:0] out_err = 0, // output errors
+	output reg[123:0] out_data = 0, // output samples
 	input coeff_in_clk, 
 	input coeff_in_areset,
 	input[3:0] coeff_in_we,
@@ -37,15 +37,6 @@ localparam nbits_out = 31;
 // number of bits in the raw core filter outputs
 localparam nbits_rout = 29;
 localparam nbits_coeff = 16;
-
-// valid out will be the and of all the valid_outs
-// from the internal filters
-wire[3:0] core_valid_out;
-assign valid_out = 
-	core_valid_out[0] &&
-	core_valid_out[1] &&
-	core_valid_out[2] &&
-	core_valid_out[3];
 
 // sign-extended core filter outputs
 wire[nbits_out-1:0] core_outputs[0:3][0:3];
@@ -66,36 +57,42 @@ always @(*) begin
 	end	
 end
 
-assign out_data = {
+wire[123:0] next_out_data = 
+	{
 	d_out_array[3],
 	d_out_array[2],
 	d_out_array[1],
 	d_out_array[0]
 	};
 
-//
-// output for reading coefficients
-//
-
-wire[nbits_coeff-1:0] coeff_out_array[0:3];
-assign coeff_out_data = {
-	coeff_out_array[3],
-	coeff_out_array[2],
-	coeff_out_array[1],
-	coeff_out_array[0]
-};
-
-
 // last set of four input samples
 reg[4*nbits_in-1:0] last_in_data = 0;
 
-// update last_in_data at each clock edge
+// valid out will be the and of all the valid_outs
+// from the internal filters
+wire[3:0] core_valid_out;
+wire next_valid_out;
+assign next_valid_out = 
+	    core_valid_out[0] &&
+	    core_valid_out[1] &&
+	    core_valid_out[2] &&
+	    core_valid_out[3];
+
+// update last_in_data, valid_out, out_data, out_err
+// at each clock edge
+wire[7:0] next_out_err;
 always @(posedge clk) begin
 	if (!reset_n) begin
 	  last_in_data <= {4*nbits_in{1'b0}};
+	  out_data <= 0;
+	  valid_out <= 0;
+	  out_err <= 0;
 	end
 	else begin
 	  last_in_data <= in_data;
+	  out_data <= next_out_data;
+	  valid_out <= next_valid_out;
+	  out_err <= next_out_err;
 	end
 end
 
@@ -150,6 +147,15 @@ generate
 	end
 endgenerate
  
+// output for reading coefficients
+wire[nbits_coeff-1:0] coeff_out_array[0:3];
+assign coeff_out_data = {
+	coeff_out_array[3],
+	coeff_out_array[2],
+	coeff_out_array[1],
+	coeff_out_array[0]
+};
+ 
 // now generate the internal filters
 generate
 	genvar k_filt;
@@ -162,7 +168,7 @@ generate
 		.ast_sink_error(2'b0),
 		.ast_source_data(f_out[k_filt]),
 		.ast_source_valid(core_valid_out[k_filt]),
-		.ast_source_error(out_err[2*(k_filt + 1) - 1 : 2*k_filt]),
+		.ast_source_error(next_out_err[2*(k_filt + 1) - 1 : 2*k_filt]),
 		.coeff_in_clk(clk),
 		.coeff_in_areset(coeff_in_areset),
 		.coeff_in_address(coeff_in_adr),

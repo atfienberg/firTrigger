@@ -22,11 +22,11 @@ module Q_extractor #(parameter BITS=31)
    output reg signed[BITS-1:0] Q = 0
    );
 
-// keep track of trig changes
-reg last_trig = 0;
-always @(posedge clk) last_trig <= trig;
-wire trig_pe = !last_trig && trig; // positive edge
-wire trig_ne = last_trig && !trig; // negative edge
+// keep track of last two trig conditions
+reg[1:0] last_trigs = 2'b0;
+always @(posedge clk) last_trigs <= {last_trigs[0], trig};
+wire trig_pe = !last_trigs[1] && last_trigs[0]; // positive edge
+wire trig_ne = last_trigs[1] && !last_trigs[0]; // negative edge
 
 //
 // pipelined comparison logic
@@ -57,9 +57,9 @@ always @(posedge clk) begin
   end
 end
 
-// valid out is trig_ne delayed by 2 cycles,
+// valid out is trig_ne delayed by 1 cycle,
 // accounts for pipeline delay
-delay #(.DELAY(2), .BITS(1))
+delay #(.DELAY(1), .BITS(1))
   trig_ne_delay(
   	.clk(clk),
   	.reset_n(reset_n),

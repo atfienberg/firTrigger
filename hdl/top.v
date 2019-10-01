@@ -53,8 +53,8 @@ assign tot1 = tot[1];
 assign tot2 = tot[2];
 assign tot3 = tot[3];
 
-fir_trig #(.BSUM_DELAY(10),
-	   .TRIG_WFM_DELAY(6),
+fir_trig #(.BSUM_DELAY(11),
+	   .TRIG_WFM_DELAY(7),
 	   .BPAUSE_LEN(8)) 
    ftrig
        (
