@@ -7,8 +7,8 @@
 // Aaron Fienberg
 // September 2019
 
-module fir_trig #(parameter BSUM_DELAY=10, 
-	                    TRIG_WFM_DELAY=6,
+module fir_trig #(parameter BSUM_DELAY=11, 
+	                    TRIG_WFM_DELAY=7,
 	                    BPAUSE_LEN=8)   
    (
    input clk, 

@@ -68,8 +68,8 @@ module tb();
    wire fvalid_out;
 
    // instantiate the trigger module
-   fir_trig #(.BSUM_DELAY(10),
-   	      .TRIG_WFM_DELAY(6),
+   fir_trig #(.BSUM_DELAY(11),
+   	      .TRIG_WFM_DELAY(7),
    	      .BPAUSE_LEN(8)) 
       ftrig(
       	   .clk(clk),
