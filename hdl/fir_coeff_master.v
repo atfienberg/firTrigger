@@ -54,8 +54,8 @@ localparam S_IDLE = 0,
            S_ACK = 5;
 reg[2:0] fsm = S_IDLE; 
 
-localparam RD_OP = 0,
-           WR_OP = 1;
+localparam[0:0] RD_OP = 0,
+                WR_OP = 1;
 reg op_type = RD_OP;
 
 reg[31:0] counter = 0;
