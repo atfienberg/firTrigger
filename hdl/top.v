@@ -32,8 +32,11 @@ module top(
 	output[7:0] out_err,
 
 	output[30:0] Q_out,
-	output Q_valid_out
+	output Q_valid_out,
 
+	input[31:0] ltc,
+	output t_valid_out,
+	output[37:0] t_out
 	);
 
 // instantiate the trigger module
@@ -130,6 +133,24 @@ Q_extractor Q_ext
    .in_3(fout[3]),
    .valid_out(Q_valid_out),
    .Q(Q_out)
+   );
+
+cfd_t_extractor t_ext
+   (
+   .clk(OSC_60MHZ),
+   .reset_n(!RESET),
+   .ltc(ltc),
+   .in_0(o0),
+   .in_1(o1),
+   .in_2(o2),
+   .in_3(o3),
+   .tot_0(tot0),
+   .tot_1(tot1),
+   .tot_2(tot2),
+   .tot_3(tot3),
+   .bsum_in(bsum_out),
+   .valid_out(t_valid_out),
+   .t_out(t_out)
    );
 
 endmodule

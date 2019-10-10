@@ -20,8 +20,7 @@ module tb();
    localparam RAMP_TEST = 0;
 
    // trig threshold
-   reg[30:0] thresh = 31'h800000;
-
+   reg[30:0] thresh = 31'h30000;
    
    parameter CLK_PERIOD = 20;
    reg clk;
@@ -168,6 +167,28 @@ module tb();
      end
    endgenerate	
 
+   // test the cfd_t_extractor
+   reg[31:0] group_num = -1; // sample group number
+   wire t_valid_out;
+   wire[37:0] t_out;
+   cfd_t_extractor t_ext
+     (
+       .clk(clk),
+       .reset_n(!rst),
+       .ltc(group_num),
+       .in_0(dout[0]),
+       .in_1(dout[1]),
+       .in_2(dout[2]),
+       .in_3(dout[3]),
+       .tot_0(tot[0]),
+       .tot_1(tot[1]),
+       .tot_2(tot[2]),
+       .tot_3(tot[3]),
+       .bsum_in(bsum_out),
+       .valid_out(t_valid_out),
+       .t_out(t_out)
+     );
+
 
    reg coeff_op_req = 0;
    reg reading_samples=0;
@@ -253,7 +274,6 @@ module tb();
 
    // block for reading samples
    reg[31:0] sample;
-   reg[31:0] group_num = -1;
  
    always @(posedge clk) begin
      	if (reading_samples) begin
