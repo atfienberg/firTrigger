@@ -246,7 +246,7 @@ always @(posedge clk) begin
 
 		if (i_lr != PRECISION-1) begin
 	    	  lefts[i_lr+1] <= lefts[i_lr];
-	    	  // midpoint is lr_sum / 2
+	    	  // midpoint (new right) is lr_sum / 2 w/ manual sign extension
 	    	  rights[i_lr+1] <= {lr_sums[i_lr][LRBITS-1], lr_sums[i_lr][LRBITS-1:1]}; 
 	    	end
 	    end // end if lr_sums >0
@@ -261,8 +261,8 @@ always @(posedge clk) begin
 	    	end
 
 	    	if (i_lr != PRECISION-1) begin
+	    	  // midpoint (new left) is lr_sum / 2
 	    	  lefts[i_lr + 1] <= lr_sums[i_lr] >> 1;
-	    	  // midpoint is lr_sum / 2
 	    	  rights[i_lr + 1] <= rights[i_lr];
 	    	end
 	    end
