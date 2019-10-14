@@ -5,12 +5,12 @@
 //
 // Delayed, inverted waveform is essentially multiplied by 2^SHIFT
 // 
-// PRECISION is the number of sub-clocktick bits to include in the extracted time.
-// latency increases by one clock tick per additional bit of precision
+// RESOLUTION is the number of sub-clocktick bits to include in the extracted time.
+// latency increases by one clock tick per additional bit of resolutoin
 //
 // Delay must be between 1 and 4 (inclusive)
 //
-// Precision must be >= 1
+// RESOLUTION must be >= 1
 //
 // Aaron Fienberg
 // October 2019
@@ -20,7 +20,7 @@ module cfd_t_extractor #(parameter INBITS=14,
 	                           BSUMBITS=18,
 	                           DELAY=1,
 	                           SHIFT=2,
-	                           PRECISION=4) 
+	                           RESOLUTION=4) 
    (
    input clk,
    input reset_n,
@@ -37,8 +37,8 @@ module cfd_t_extractor #(parameter INBITS=14,
    
    output reg valid_out = 0, // whether t is a valid time extraction 
 
-   // 32 bits for LTC, 2 for sample index in group, plus the precision bits
-   output reg [32 + 2 + PRECISION - 1:0] t_out = 0 // the extracted time
+   // 32 bits for LTC, 2 for sample index in group, plus the RESOLUTION bits
+   output reg [32 + 2 + RESOLUTION - 1:0] t_out = 0 // the extracted time
    );
 
 // 
@@ -171,13 +171,13 @@ delay #(.DELAY(3), .BITS(4))
   	    .d_in(tot_in), .d_out(tot_d));
 
 // store values on left/right of zero-crossing for interpolation
-// repeat until desired precision is reached
+// repeat until desired RESOLUTION is reached
 localparam LRBITS = SUMBITS + 1;
-reg signed[LRBITS-1:0] lefts[0:PRECISION-1];
-reg signed[LRBITS-1:0] rights[0:PRECISION-1];
-wire signed[LRBITS-1:0] lr_sums[0:PRECISION-1];
+reg signed[LRBITS-1:0] lefts[0:RESOLUTION-1];
+reg signed[LRBITS-1:0] rights[0:RESOLUTION-1];
+wire signed[LRBITS-1:0] lr_sums[0:RESOLUTION-1];
 generate
-  for (i = 0; i < PRECISION; i = i + 1) begin : lr_sum_assign
+  for (i = 0; i < RESOLUTION; i = i + 1) begin : lr_sum_assign
     assign lr_sums[i] = lefts[i] + rights[i];	
   end
 endgenerate
@@ -216,13 +216,13 @@ always @(posedge clk) begin
 	end
 end
 
-// build up sub-sample precision word one bit at a time
-reg[PRECISION-1:0] ssamp_words[0:PRECISION-1]; // pipeline of words representing 
-                                               // zero crossing location between samples
+// build up sub-sample RESOLUTION word one bit at a time
+reg[RESOLUTION-1:0] ssamp_words[0:RESOLUTION-1]; // pipeline of words representing 
+                                                 // zero crossing location between samples
 integer i_lr;                              
 always @(posedge clk) begin
 	if (!reset_n) begin
-	  for (i_lr = 0; i_lr < PRECISION; i_lr = i_lr + 1) begin
+	  for (i_lr = 0; i_lr < RESOLUTION; i_lr = i_lr + 1) begin
 	    ssamp_words[i_lr] <= 0;
 	    if (i_lr > 0) begin 
 	      // lefts/rights[0] handled by zero-crossing finder above
@@ -235,7 +235,7 @@ always @(posedge clk) begin
  	// for each l-r pair, check whether zero crossing is 
  	// closer to left side or right side. repeat iteratively
 	else begin
-	  for (i_lr = 0; i_lr < PRECISION; i_lr = i_lr + 1) begin
+	  for (i_lr = 0; i_lr < RESOLUTION; i_lr = i_lr + 1) begin
 	    if (lr_sums[i_lr] < 0) begin
 	    	// zero crossing closer to the left: new 0 bit
 	    	if (i_lr == 0) ssamp_words[0] <= 0;
@@ -244,7 +244,7 @@ always @(posedge clk) begin
 	    	  ssamp_words[i_lr] <= ssamp_words[i_lr - 1];
 		end
 
-		if (i_lr != PRECISION-1) begin
+		if (i_lr != RESOLUTION-1) begin
 	    	  lefts[i_lr+1] <= lefts[i_lr];
 	    	  // midpoint (new right) is lr_sum / 2 w/ manual sign extension
 	    	  rights[i_lr+1] <= {lr_sums[i_lr][LRBITS-1], lr_sums[i_lr][LRBITS-1:1]}; 
@@ -253,20 +253,20 @@ always @(posedge clk) begin
 
 	    else begin 
 	    	// zero crossing closer to the right: new 1 bit
-	    	if (i_lr == 0) ssamp_words[0] <= (1'b1 << (PRECISION-1));
+	    	if (i_lr == 0) ssamp_words[0] <= (1'b1 << (RESOLUTION-1));
 
 	    	else begin
 	    	  ssamp_words[i_lr] <= (ssamp_words[i_lr - 1] | 
-	    	  	                (1'b1 << (PRECISION-1-i_lr)));
+	    	  	                (1'b1 << (RESOLUTION-1-i_lr)));
 	    	end
 
-	    	if (i_lr != PRECISION-1) begin
+	    	if (i_lr != RESOLUTION-1) begin
 	    	  // midpoint (new left) is lr_sum / 2
 	    	  lefts[i_lr + 1] <= lr_sums[i_lr] >> 1;
 	    	  rights[i_lr + 1] <= rights[i_lr];
 	    	end
 	    end
-	  end // end loop over precision bits
+	  end // end loop over RESOLUTION bits
 	end
 end                               
 
@@ -274,16 +274,16 @@ end
 // Prepare / align output data
 //
 
-// crossing index and crossing_found must be delayed by PRECISION 
-// to allow for time to calculate the subsample precision bits
+// crossing index and crossing_found must be delayed by RESOLUTION 
+// to allow for time to calculate the subsample RESOLUTION bits
 wire[1:0] crossing_ind_d;
-delay #(.DELAY(PRECISION), .BITS(2)) 
+delay #(.DELAY(RESOLUTION), .BITS(2)) 
   c_ind_delay(.clk(clk), .reset_n(reset_n), 
   	      .d_in(crossing_ind), 
   	      .d_out(crossing_ind_d));
 
 wire out_rdy;
-delay #(.DELAY(PRECISION), .BITS(1)) 
+delay #(.DELAY(RESOLUTION), .BITS(1)) 
   c_found_delay(.clk(clk), .reset_n(reset_n), 
   	        .d_in(crossing_found), 
   	        .d_out(out_rdy));
@@ -291,8 +291,8 @@ delay #(.DELAY(PRECISION), .BITS(1))
 
 // total latency is 3 for preparing r_sums
 // + 1 for finding crossing index
-// + PRECISION for finding subsample precision
-localparam[31:0] LATENCY = 4 + PRECISION;
+// + RESOLUTION for finding time between samples
+localparam[31:0] LATENCY = 4 + RESOLUTION;
 wire[31:0] shifted_ltc = ltc - LATENCY;
 
 
@@ -305,9 +305,10 @@ always @(posedge clk) begin
   if (out_rdy) begin 
     t_out <= {shifted_ltc, 
   	      crossing_ind_d, 
-  	      ssamp_words[PRECISION-1]};
+  	      ssamp_words[RESOLUTION-1]};
     valid_out <= 1;
   end
 end
 
-endmodule	                       
+endmodule
+	                       
