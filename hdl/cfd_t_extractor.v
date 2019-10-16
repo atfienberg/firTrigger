@@ -334,7 +334,7 @@ delay #(.DELAY(RESOLUTION), .BITS(1))
   	        .d_out(out_rdy));
 
 
-// output_ltc is sum_ltc delayed by RESOUTION + clock ticks
+// output_ltc is sum_ltc delayed by RESOUTION + 1 clock ticks
 // (1 cycle to find the group idx, RESOLUTION for the resolution bits)
 wire[LTC_BITS-1:0] output_ltc;
 delay #(.DELAY(RESOLUTION + 1), .BITS(LTC_BITS)) 
