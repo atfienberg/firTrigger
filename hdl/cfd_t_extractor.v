@@ -20,11 +20,12 @@ module cfd_t_extractor #(parameter INBITS=14,
 	                           BSUMBITS=18,
 	                           DELAY=1,
 	                           SHIFT=2,
-	                           RESOLUTION=4) 
+	                           RESOLUTION=4,
+	                           LTC_BITS=32) 
    (
    input clk,
    input reset_n,
-   input [31:0] ltc,        // time counter for given input samples         
+   input [LTC_BITS-1:0] ltc,        // time counter for given input samples         
    input [INBITS-1:0] in_0, // input sample 0
    input [INBITS-1:0] in_1, // input sample 1
    input [INBITS-1:0] in_2, // input sample 2
@@ -35,10 +36,11 @@ module cfd_t_extractor #(parameter INBITS=14,
    input tot_3,             // tot for input sample 3
    input [BSUMBITS-1:0] bsum_in, //  baseline sum
    
-   output reg valid_out = 0, // whether t is a valid time extraction 
+   input valid_in,           // whether to load the input into the pipeline
+   output reg valid_out = 0, // whether t_out is a valid time extraction 
 
-   // 32 bits for LTC, 2 for sample index in group, plus the RESOLUTION bits
-   output reg [32 + 2 + RESOLUTION - 1:0] t_out = 0 // the extracted time
+   // LTC_BITS bits for LTC, 2 for sample index in group, plus the RESOLUTION bits
+   output reg [LTC_BITS + 2 + RESOLUTION - 1:0] t_out = 0 // the extracted time
    );
 
 // 
@@ -96,6 +98,13 @@ wire[INVBITS-1:0] inv_samps[0:7];
 // the newest group of inverted, bit shifted samples
 wire[INVBITS-1:0] new_inv[0:3];
 
+// registers for keeping track of LTCs;
+// need three sequential LTCs for algorithm to make sense
+reg[LTC_BITS-1:0] last_ltc = 0;
+// whether the last two LTCS 
+// and the two before that were sequential
+reg[1:0] was_sequential = 2'b0;
+
 genvar i;
 generate
 	for (i = 0; i < 8; i = i + 1) begin : sample_vecs
@@ -113,13 +122,18 @@ always @(posedge clk) begin
 	if (!reset_n) begin
 	  sample_rec <= 0;
 	  inv_rec <= 0;
+	  was_sequential <= 2'b0;
 	end
-	else begin
+	else if (valid_in) begin
 	  sample_rec <= {sample_rec[4*CORBITS - 1:0],
 	                 {cor_in[0], cor_in[1], cor_in[2], cor_in[3]}};
 
 	  inv_rec <= {inv_rec[4*INVBITS - 1:0],
 	              {new_inv[0], new_inv[1], new_inv[2], new_inv[3]}};
+
+          last_ltc <= ltc;
+
+          was_sequential <= {was_sequential[0], ltc == last_ltc + 1};
         end	                
 end
 
@@ -147,12 +161,50 @@ generate
 	end
 endgenerate
 
-// register the sums
+// Conditions for sum/cfd waveform to be valid for 0-xing detection:
+// 1. A new group was loaded into the pipeline in the previous clock cycle
+// 2. The last three loaded groups had sequential LTCs 
+// the following reg and wire are used to check these condition
+reg was_valid = 0;
+always @(posedge clk) was_valid <= valid_in;
+wire sequential_ltcs = was_sequential[0] && was_sequential[1];
+reg valid_sum = 0;
+
+// must delay the input TOT so it is available 
+// at the same time as the sum for the associated samples.
+// Must only advance the TOT pipeline when valid_in is 1.
+// TOT pipeline is two cycles deep
+// 4 bits * 2 cycles = 8 bits
+reg[7:0] tot_pline = 0;
+always @(posedge clk) begin
+	if (!reset_n) tot_pline <= 0;
+	else if (valid_in) 
+	  tot_pline <= {tot_pline[4:0], 
+	  	        {tot_3, tot_2, tot_1, tot_0}};	
+end
+// delayed tot
+wire tot_d[0:3];
+assign tot_d[0] = tot_pline[4];
+assign tot_d[1] = tot_pline[5];
+assign tot_d[2] = tot_pline[6];
+assign tot_d[3] = tot_pline[7];
+// tot for the registered sum
+reg sum_tot[0:3];
+
+// register the sums (aka the cfd waveform)
 reg signed[SUMBITS-1:0] r_sums[0:4];
+// ltc associated with the sum/cfd waveform is last_ltc - 1
+reg[LTC_BITS-1:0] sum_ltc = 0;
 integer i_sum;
 always @(posedge clk) begin
+  sum_ltc <= last_ltc - 1;
+  valid_sum <= was_valid && sequential_ltcs;
+  
   for (i_sum = 0; i_sum < 5; i_sum = i_sum + 1) begin
     r_sums[i_sum] <= sums[i_sum];
+
+    if (i_sum < 4) 
+      sum_tot[i_sum] <= tot_d[i_sum];
   end
 end
 
@@ -160,15 +212,6 @@ end
 //
 // Zero-crossing detection
 //
-
-
-// first, delay the input TOT so it is available 
-// at the same time as the registered sum for the associated samples
-wire[3:0] tot_in = {tot_3, tot_2, tot_1, tot_0};
-wire[3:0] tot_d;
-delay #(.DELAY(3), .BITS(4)) 
-  tot_delay(.clk(clk), .reset_n(reset_n), 
-  	    .d_in(tot_in), .d_out(tot_d));
 
 // store values on left/right of zero-crossing for interpolation
 // repeat until desired RESOLUTION is reached
@@ -188,14 +231,15 @@ reg[1:0] crossing_ind = 0;
 reg crossing_found = 0;
 integer i_s; // sample index
 always @(posedge clk) begin
+	crossing_ind <= 0;
+	crossing_found <= 0;
+	
 	if (!reset_n) begin
-	  crossing_ind <= 0;
-	  crossing_found <= 0;
 	  lefts[0] <= 0;
 	  rights[0] <= 0;
 	end
 
-	else begin
+	else if (valid_sum) begin
 	  crossing_found <= 0;
 	  crossing_ind <= 0;
 	  lefts[0] <= 0;
@@ -203,16 +247,17 @@ always @(posedge clk) begin
 
 	  for (i_s = 0; i_s < 4; i_s = i_s + 1) begin
 	  
-	    if (tot_d[i_s] && 
+	    if (sum_tot[i_s] && 
 	    	r_sums[i_s] >= 0 && r_sums[i_s + 1] < 0) begin
 	      crossing_found <= 1;
 	      crossing_ind <= i_s;
 
 	      lefts[0] <= {r_sums[i_s][SUMBITS-1], r_sums[i_s]};
 	      rights[0] <= {r_sums[i_s+1][SUMBITS-1], r_sums[i_s+1]};	 
-	    end
+	    end	  
 	  
 	  end
+
 	end
 end
 
@@ -289,12 +334,13 @@ delay #(.DELAY(RESOLUTION), .BITS(1))
   	        .d_out(out_rdy));
 
 
-// total latency is 3 for preparing r_sums
-// + 1 for finding crossing index
-// + RESOLUTION for finding time between samples
-localparam[31:0] LATENCY = 4 + RESOLUTION;
-wire[31:0] shifted_ltc = ltc - LATENCY;
-
+// output_ltc is sum_ltc delayed by RESOUTION + clock ticks
+// (1 cycle to find the group idx, RESOLUTION for the resolution bits)
+wire[LTC_BITS-1:0] output_ltc;
+delay #(.DELAY(RESOLUTION + 1), .BITS(LTC_BITS)) 
+  c_ltc_delay(.clk(clk), .reset_n(reset_n), 
+  	      .d_in(sum_ltc), 
+  	      .d_out(output_ltc));
 
 //
 // register the outputs
@@ -303,7 +349,7 @@ wire[31:0] shifted_ltc = ltc - LATENCY;
 always @(posedge clk) begin
   valid_out <= 0;
   if (out_rdy) begin 
-    t_out <= {shifted_ltc, 
+    t_out <= {output_ltc, 
   	      crossing_ind_d, 
   	      ssamp_words[RESOLUTION-1]};
     valid_out <= 1;

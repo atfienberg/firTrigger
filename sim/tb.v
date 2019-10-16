@@ -9,7 +9,7 @@
 //////////////////////////////////////////////////////////////////////////////////////////////////
 // Test cases
 //////////////////////////////////////////////////////////////////////////////////////////////////
-`define TEST_CASE_1
+`define TEST_CASE_2
 
 module tb();
    
@@ -20,7 +20,7 @@ module tb();
    localparam RAMP_TEST = 0;
 
    // trig threshold
-   reg[30:0] thresh = 31'h30000;
+   reg[30:0] thresh = 31'h18000;
    
    parameter CLK_PERIOD = 20;
    reg clk;
@@ -171,20 +171,29 @@ module tb();
    reg[31:0] group_num = -1; // sample group number
    wire t_valid_out;
    wire[37:0] t_out;
+
+   reg cfd_valid_in;
+   reg[13:0] cfd_in[0:3];
+   reg cfd_tot_in[0:3];
+   reg[17:0] cfd_bsum_in;
+
+   reg[31:0] cfd_ltc;
+
    cfd_t_extractor t_ext
      (
        .clk(clk),
        .reset_n(!rst),
-       .ltc(group_num),
-       .in_0(dout[0]),
-       .in_1(dout[1]),
-       .in_2(dout[2]),
-       .in_3(dout[3]),
-       .tot_0(tot[0]),
-       .tot_1(tot[1]),
-       .tot_2(tot[2]),
-       .tot_3(tot[3]),
-       .bsum_in(bsum_out),
+       .ltc(cfd_ltc),
+       .in_0(cfd_in[0]),
+       .in_1(cfd_in[1]),
+       .in_2(cfd_in[2]),
+       .in_3(cfd_in[3]),
+       .tot_0(cfd_tot_in[0]),
+       .tot_1(cfd_tot_in[1]),
+       .tot_2(cfd_tot_in[2]),
+       .tot_3(cfd_tot_in[3]),
+       .bsum_in(cfd_bsum_in),
+       .valid_in(cfd_valid_in),
        .valid_out(t_valid_out),
        .t_out(t_out)
      );
@@ -224,7 +233,7 @@ module tb();
 	// Logging
         $display("");
         $display("------------------------------------------------------");
-        $display("Test Case: TEST CASE 0");
+        $display("FIR FILTER & CFD TEST");
 
         coeff_req <= 0;
 
@@ -335,5 +344,65 @@ always @(posedge clk) begin
  	  end
  	end
 end
+
+
+// inputs to the cfd
+`ifdef TEST_CASE_1
+// test 1: just put the filter outputs directly into it
+integer i_cfd;
+always @(*) begin
+	for (i_cfd = 0; i_cfd < 4; i_cfd = i_cfd + 1) begin
+	  cfd_in[i_cfd] = dout[i_cfd];
+	  cfd_tot_in[i_cfd] = tot[i_cfd];	  
+	end
+
+	cfd_bsum_in = bsum_out;
+     cfd_valid_in = fvalid_out;
+     cfd_ltc = group_num;
+end 
+
+`endif
+
+`ifdef TEST_CASE_2
+// test 2: toggle the cfd input on and off
+localparam TOG_PERIOD = 4;
+reg[55:0] dout_buffer[0:100];
+reg[17:0] bsum_out_buffer[0:100];
+reg[3:0] tot_out_buffer[0:100];
+reg[31:0] grp_num_buf[0:100];
+integer i_buf = 0;
+integer i_samp = 0;
+integer i_toggle;
+always @(posedge clk) begin
+  if (fvalid_out) begin
+    dout_buffer[i_buf] <= {dout[3], dout[2], dout[1], dout[0]};
+    tot_out_buffer[i_buf] <= {tot[3], tot[2], tot[1], tot[0]};
+    bsum_out_buffer[i_buf] <= bsum_out;
+    grp_num_buf[i_buf] <= group_num;
+    i_buf <= i_buf + 1;
+  end
+
+  if (i_buf % TOG_PERIOD == 1) begin
+    i_toggle = i_buf / TOG_PERIOD;
+
+    cfd_in[0] <= dout_buffer[i_toggle][13:0];
+    cfd_in[1] <= dout_buffer[i_toggle][27:14];
+    cfd_in[2] <= dout_buffer[i_toggle][41:28];
+    cfd_in[3] <= dout_buffer[i_toggle][55:42];
+    
+    cfd_tot_in[0] <= tot_out_buffer[i_toggle][0];
+    cfd_tot_in[1] <= tot_out_buffer[i_toggle][1];
+    cfd_tot_in[2] <= tot_out_buffer[i_toggle][2];
+    cfd_tot_in[3] <= tot_out_buffer[i_toggle][3];
+    
+    cfd_bsum_in <= bsum_out_buffer[i_toggle];
+
+    cfd_ltc <= grp_num_buf[i_toggle];
+
+    cfd_valid_in <= 1;
+  end
+  else cfd_valid_in <= 0;
+end
+`endif
 
 endmodule
