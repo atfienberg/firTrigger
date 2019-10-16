@@ -149,6 +149,7 @@ cfd_t_extractor t_ext
    .tot_2(tot2),
    .tot_3(tot3),
    .bsum_in(bsum_out),
+   .valid_in(fvalid_out),
    .valid_out(t_valid_out),
    .t_out(t_out)
    );
