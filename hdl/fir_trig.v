@@ -49,6 +49,7 @@ module fir_trig #(parameter BSUM_DELAY=11,
    output fvalid_out,      // whether filter output is valid
    output[7:0] out_err,    // output errors
 
+   input coeff_in_clk,
    input coeff_in_areset,  
    input[3:0] coeff_in_we,
    input[1:0] coeff_in_adr, // coeff adr fanned out to all internal filters
@@ -188,7 +189,7 @@ wfm_filter filt(
   	.valid_out(raw_valid_out),
   	.out_err(out_err),
   	.out_data(fout_p),
-  	.coeff_in_clk(clk),
+  	.coeff_in_clk(coeff_in_clk),
   	.coeff_in_areset(coeff_in_areset),
   	.coeff_in_we(coeff_in_we),
   	.coeff_in_adr(coeff_in_adr),

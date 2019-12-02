@@ -169,7 +169,7 @@ generate
 		.ast_source_data(f_out[k_filt]),
 		.ast_source_valid(core_valid_out[k_filt]),
 		.ast_source_error(next_out_err[2*(k_filt + 1) - 1 : 2*k_filt]),
-		.coeff_in_clk(clk),
+		.coeff_in_clk(coeff_in_clk),
 		.coeff_in_areset(coeff_in_areset),
 		.coeff_in_address(coeff_in_adr),
 		.coeff_in_read(coeff_in_read),

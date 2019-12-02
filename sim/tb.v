@@ -24,12 +24,19 @@ module tb();
    
    parameter CLK_PERIOD = 20;
    reg clk;
+
+   parameter COEFF_CLK_PERIOD = 100;
+   reg coeff_clk;
    
    //////////////////////////////////////////////////////////////////////
-   // Clock Driver
+   // Clock Drivers
    //////////////////////////////////////////////////////////////////////
    always @(clk)
      #(CLK_PERIOD / 2.0) clk <= !clk;
+
+
+   always @(coeff_clk)
+     #(COEFF_CLK_PERIOD / 2.0) coeff_clk <= !coeff_clk;
 
    // input/output data
    reg rst;
@@ -105,6 +112,7 @@ module tb();
       	   .valid_in(valid_in),
       	   .fvalid_out(fvalid_out),
       	   .out_err(err_out),
+      	   .coeff_in_clk(coeff_clk),
       	   .coeff_in_areset(coeff_in_areset),
       	   .coeff_in_we(coeff_in_we),
       	   .coeff_in_adr(coeff_in_adr),
@@ -124,7 +132,7 @@ module tb();
 
    fir_coeff_master cm 
       (
-      	.clk(clk),
+      	.clk(coeff_clk),
       	.reset_n(!rst),
       	.req(coeff_req),
       	.wr_op(coeff_wr_op),
@@ -168,6 +176,7 @@ module tb();
    endgenerate	
 
    // test the cfd_t_extractor
+   // reg[31:0] group_num = -30; // sample group number
    reg[31:0] group_num = -1; // sample group number
    wire t_valid_out;
    wire[37:0] t_out;
@@ -207,6 +216,7 @@ module tb();
    initial begin
         // Initializations
         clk = 1'b0;
+        coeff_clk = 1'b1;
   	rst = 1'b0;
   	din[0] = 0;
   	din[1] = 0;
@@ -288,6 +298,7 @@ module tb();
      	if (reading_samples) begin
           rst <= 0;
      	  group_num <= group_num + 1;
+     	  
           valid_in <= 1;
   	  if (!$feof(data_file)) begin
   	    scan_file = $fscanf(data_file, "%d\n", sample);
